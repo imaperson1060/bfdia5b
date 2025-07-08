@@ -239,7 +239,7 @@ function resetLevel(){
 	levelButtons.textie.text = numberToText(currentLevel+1,true)+". "+levelName[currentLevel];
 	gotThisCoin = false;
 	levelTimer = 0;
-	levelTimer2 = getTimer();
+	levelTimer2 = 1000 / 60; // need to start at the first frame because wipeTimer == 30 blocks the timer from running
 	if(char[0].charState <= 9) changeControl();
 }
 function copyLevel(thatLevel:Array){
@@ -276,6 +276,13 @@ function toHMS(i:Number){
 	var s:Number = Math.floor(i/1000)%60;
 	var ds:Number = Math.floor(i/100)%10;
 	return numberToText(h,false)+":"+numberToText(m,false)+":"+numberToText(s,false)+"."+ds;
+}
+function toHMS2(i:Number){
+	var h:Number = Math.floor(i/3600000);
+	var m:Number = Math.floor(i/60000)%60;
+	var s:Number = Math.floor(i/1000)%60;
+	var ds:Number = Math.round(i%1000);
+	return numberToText(h*60+m,false)+":"+numberToText(s,false)+"."+numberToText(ds,true);
 }
 function drawLevel(){
 	if(playMode == 0 && currentLevel >= 1){
@@ -1309,6 +1316,27 @@ function drawLevelMap(){
 	cameraX = 0;
 	_root.attachMovie("levelMap","levelMap",2,{_x:0,_y:0});
 	_root.attachMovie("levelMapBorder","levelMapBorder",3);
+	levelMap.layoutButton.onRelease = function(){
+		_root.levelMap.removeMovieClip();
+		_root.levelMapBorder.removeMovieClip();
+		drawLayoutEditor();
+	}
+	if(bfdia5b.data.timerMod.config.timingMethod == "prev"){
+		levelMap.prevTimeButton._y += 200;
+		levelMap.bestTimeButton._y -= 200;
+	}
+	levelMap.prevTimeButton.onRelease = function(){
+		levelMap.prevTimeButton._y -= 200;
+		levelMap.bestTimeButton._y += 200;
+		bfdia5b.data.timerMod.config.timingMethod = "best";
+		bfdia5b.flush();
+	}
+	levelMap.bestTimeButton.onRelease = function(){
+		levelMap.prevTimeButton._y += 200;
+		levelMap.bestTimeButton._y -= 200;
+		bfdia5b.data.timerMod.config.timingMethod = "prev";
+		bfdia5b.flush();
+	}
 	levelMapBorder.goBack.onRelease = function(){
 		_root.levelMap.removeMovieClip();
 		_root.levelMapBorder.removeMovieClip();
@@ -1360,26 +1388,228 @@ function drawLevelMap(){
 		}
 		levelMap["levelButton"+i].onRollOver = function(){
 			if(this.id <= levelProgress) levelMap["levelButton"+this.id].mov.gotoAndStop(2);
+			if(this.id < levelProgress && transitionType != 2){
+				if(bfdia5b.data.timerMod.config.timingMethod == "prev" && bfdia5b.data.timerMod.prev[this.id]){
+					levelMap["levelButton" + this.id].textie.text = "";
+					levelMap["levelButton" + this.id].bestTime.text = toHMS2(bfdia5b.data.timerMod.prev[this.id]);
+				}else if(bfdia5b.data.timerMod.config.timingMethod != "prev" && best[this.id]){
+					levelMap["levelButton" + this.id].textie.text = "";
+					levelMap["levelButton" + this.id].bestTime.text = toHMS2(best[this.id]);
+				}
+			}
 		}
 		levelMap["levelButton"+i].onRollOut = function(){
+			clearInterval(clearTimeInterval);
+			clearTime = 10000;
+			levelMap["levelButton" + this.id]._alpha = 100;
 			levelMap["levelButton"+this.id].mov.gotoAndStop(1);
+			if(this.id < levelProgress && transitionType != 2){
+				if(this.id >= 100) levelMap["levelButton" + this.id].textie.text = "B" + numberToText(this.id - 99, false);
+				else levelMap["levelButton" + this.id].textie.text = numberToText(this.id + 1, true);
+				levelMap["levelButton" + this.id].bestTime.text = "";
+			}
 		}
 		levelMap["levelButton"+i].onReleaseOutside = function(){
+			clearInterval(clearTimeInterval);
+			clearTime = 10000;
+			levelMap["levelButton" + this.id]._alpha = 100;
 			levelMap["levelButton"+this.id].mov.gotoAndStop(1);
+			if(this.id < levelProgress && transitionType != 2){
+				if(this.id >= 100) levelMap["levelButton" + this.id].textie.text = "B" + numberToText(this.id - 99, false);
+				else levelMap["levelButton" + this.id].textie.text = numberToText(this.id + 1, true);
+				levelMap["levelButton" + this.id].bestTime.text = "";
+			}
 		}
 		levelMap["levelButton"+i].onPress = function(){
 			if(this.id <= levelProgress) levelMap["levelButton"+this.id].mov.gotoAndStop(3);
+			if (bfdia5b.data.timerMod.config.timingMethod != "prev" && best[this.id]){
+				var startPress = getTimer();
+				clearTimeInterval = setInterval(clearTimer, 100, this.id, startPress);
+			}
 		}
 		levelMap["levelButton"+i].onRelease = function(){
-			if(this.id <= levelProgress){
+			if(this.id <= levelProgress && clearTime > 6500){
 				playLevel(this.id);
 				_root.levelMap.removeMovieClip();
 				_root.levelMapBorder.removeMovieClip();
 				white._alpha = 100;
 			}
+			clearInterval(clearTimeInterval);
+			clearTime = 10000;
+			levelMap["levelButton" + this.id]._alpha = 100;
 		}
 	}
+	if(transitionType == 2){
+		levelMap["levelButton" + currentLevel].textie.text = "";
+		levelMap["levelButton" + currentLevel].bestTime.text = toHMS2(prev[currentLevel]);
+		levelMap["levelButton" + currentLevel]._alpha = 50;
+		setTimeout(function() {
+			transitionType = 1;
+			if(levelMap["levelButton" + currentLevel].mov._currentframe != 2){
+				levelMap["levelButton" + currentLevel].textie.text = numberToText(currentLevel + 1, true);
+				levelMap["levelButton" + currentLevel].bestTime.text = "";
+				levelMap["levelButton" + currentLevel]._alpha = 100;
+			}
+		}, 500);
+	}
 	menuScreen = 2;
+}
+var clearTime = 10000;
+var clearTimeInterval;
+function clearTimer(buttonid, pressTime){
+	clearTime -= (getTimer() - pressTime);
+	levelMap["levelButton" + buttonid]._alpha = clearTime / 100;
+	if (clearTime <= 0){
+		best[buttonid] = undefined;
+		bfdia5b.data.timerMod.best[buttonid] = undefined;
+		bfdia5b.flush();
+		levelMap["levelButton" + buttonid].textie.text = numberToText(buttonid + 1, true);
+		levelMap["levelButton" + buttonid].bestTime.text = "";
+		levelMap["levelButton" + buttonid]._alpha = 100;
+		clearInterval(clearTimeInterval);
+	}
+}
+function drawLayoutEditor(){
+	var keyListener = new Object();
+	keyListener.onKeyDown = function(){
+		if(Key.isDown(82)){
+			bfdia5b.data.timerMod.config.showTimer = true;
+			bfdia5b.data.timerMod.config.showKeys = true;
+			_root.levelButtons.levelTimer._x = bfdia5b.data.timerMod.config.levelTimer[0] = 4;
+			_root.levelButtons.levelTimer._y = bfdia5b.data.timerMod.config.levelTimer[1] = 3;
+			_root.levelButtons.levelTimer._xscale = bfdia5b.data.timerMod.config.levelTimerScale[0] = 70;
+			_root.levelButtons.levelTimer._yscale = bfdia5b.data.timerMod.config.levelTimerScale[1] = 70;
+			_root.levelButtons.levelTimer._alpha = bfdia5b.data.timerMod.config.levelTimerOpacity = 60;
+			_root.levelButtons.levelKeys._x = bfdia5b.data.timerMod.config.levelKeys[0] = 695;
+			_root.levelButtons.levelKeys._y = bfdia5b.data.timerMod.config.levelKeys[1] = 3;
+			_root.levelButtons.levelKeys._xscale = bfdia5b.data.timerMod.config.levelKeysScale[0] = 60;
+			_root.levelButtons.levelKeys._yscale = bfdia5b.data.timerMod.config.levelKeysScale[1] = 60;
+			_root.levelButtons.levelKeys._alpha = bfdia5b.data.timerMod.config.levelKeysOpacity = 45;
+		} else if(_root.levelButtons.levelTimer._x <= _xmouse && _xmouse <= _root.levelButtons.levelTimer._x + _root.levelButtons.levelTimer._width &&
+		   _root.levelButtons.levelTimer._y <= _ymouse && _ymouse <= _root.levelButtons.levelTimer._y + _root.levelButtons.levelTimer._height){
+			var timerOffset2X = _root.levelButtons.levelTimer._xmouse, timerOffset2Y = _root.levelButtons.levelTimer._ymouse;
+			if (Key.isDown(38)) _root.levelButtons.levelTimer._xscale = _root.levelButtons.levelTimer._yscale += 5;
+			else if (Key.isDown(40) && _root.levelButtons.levelTimer._xscale > 10) _root.levelButtons.levelTimer._xscale = _root.levelButtons.levelTimer._yscale -= 5;
+			if (Key.isDown(39) && _root.levelButtons.levelTimer._alpha <= 95) bfdia5b.data.timerMod.config.levelTimerOpacity += 5;
+			else if (Key.isDown(37) && _root.levelButtons.levelTimer._alpha > 10) bfdia5b.data.timerMod.config.levelTimerOpacity -= 5;
+			_root.levelButtons.levelTimer._x = _xmouse - _root.levelButtons.levelTimer._xscale / 100 * timerOffset2X;
+			_root.levelButtons.levelTimer._y = _ymouse - _root.levelButtons.levelTimer._yscale / 100 * timerOffset2Y;
+			bfdia5b.data.timerMod.config.levelTimer[0] = _root.levelButtons.levelTimer._x;
+			bfdia5b.data.timerMod.config.levelTimer[1] = _root.levelButtons.levelTimer._y;
+			bfdia5b.data.timerMod.config.levelTimerScale[0] = _root.levelButtons.levelTimer._xscale;
+			bfdia5b.data.timerMod.config.levelTimerScale[1] = _root.levelButtons.levelTimer._yscale;
+			_root.levelButtons.levelTimer._alpha = bfdia5b.data.timerMod.config.levelTimerOpacity;
+			bfdia5b.flush();
+		} else if(_root.levelButtons.levelKeys._x <= _xmouse && _xmouse <= _root.levelButtons.levelKeys._x + _root.levelButtons.levelKeys._width &&
+		   _root.levelButtons.levelKeys._y <= _ymouse && _ymouse <= _root.levelButtons.levelKeys._y + _root.levelButtons.levelKeys._height){
+			var keysOffset2X = _root.levelButtons.levelKeys._xmouse, keysOffset2Y = _root.levelButtons.levelKeys._ymouse;
+			if (Key.isDown(38)) _root.levelButtons.levelKeys._xscale = _root.levelButtons.levelKeys._yscale += 5;
+			else if (Key.isDown(40) && _root.levelButtons.levelKeys._xscale > 10) _root.levelButtons.levelKeys._xscale = _root.levelButtons.levelKeys._yscale -= 5;
+			if (Key.isDown(39) && _root.levelButtons.levelKeys._alpha <= 95) bfdia5b.data.timerMod.config.levelKeysOpacity += 5;
+			else if (Key.isDown(37) && _root.levelButtons.levelKeys._alpha > 10) bfdia5b.data.timerMod.config.levelKeysOpacity -= 5;
+			_root.levelButtons.levelKeys._x = _xmouse - _root.levelButtons.levelKeys._xscale / 100 * keysOffset2X;
+			_root.levelButtons.levelKeys._y = _ymouse - _root.levelButtons.levelKeys._yscale / 100 * keysOffset2Y;
+			bfdia5b.data.timerMod.config.levelKeys[0] = _root.levelButtons.levelKeys._x;
+			bfdia5b.data.timerMod.config.levelKeys[1] = _root.levelButtons.levelKeys._y;
+			bfdia5b.data.timerMod.config.levelKeysScale[0] = _root.levelButtons.levelKeys._xscale;
+			bfdia5b.data.timerMod.config.levelKeysScale[1] = _root.levelButtons.levelKeys._yscale;
+			_root.levelButtons.levelKeys._alpha = bfdia5b.data.timerMod.config.levelKeysOpacity;
+			bfdia5b.flush();
+		}
+	}
+	Key.addListener(keyListener);
+
+	_root.attachMovie("levelButtons","levelButtons",9);
+	_root.levelButtons.levelTimer._x = bfdia5b.data.timerMod.config.levelTimer[0] || 4;
+	_root.levelButtons.levelTimer._y = bfdia5b.data.timerMod.config.levelTimer[1] || 3;
+	_root.levelButtons.levelTimer._xscale = bfdia5b.data.timerMod.config.levelTimerScale[0] || 70;
+	_root.levelButtons.levelTimer._yscale = bfdia5b.data.timerMod.config.levelTimerScale[1] || 70;
+	_root.levelButtons.levelTimer._alpha = bfdia5b.data.timerMod.config.levelTimerOpacity || 60;
+	_root.levelButtons.levelKeys._x = bfdia5b.data.timerMod.config.levelKeys[0] || 695;
+	_root.levelButtons.levelKeys._y = bfdia5b.data.timerMod.config.levelKeys[1] || 3;
+	_root.levelButtons.levelKeys._xscale = bfdia5b.data.timerMod.config.levelKeysScale[0] || 60;
+	_root.levelButtons.levelKeys._yscale = bfdia5b.data.timerMod.config.levelKeysScale[1] || 60;
+	_root.levelButtons.levelKeys._alpha = bfdia5b.data.timerMod.config.levelKeysOpacity || 45;
+
+	_root.levelButtons.levelKeys.useHandCursor = true;
+	_root.levelButtons.levelKeys.zKey.keyText.text = "z";
+	_root.levelButtons.levelKeys.rKey.keyText.text = "r";
+	_root.levelButtons.levelKeys.spaceKey.keyText.text = "[Y to hide]";
+	_root.levelButtons.levelKeys.spaceKey.keyText.textColor = 0xFFFFFF;
+	_root.levelButtons.levelKeys.leftArrowKey.keyText.text = "←";
+	_root.levelButtons.levelKeys.upArrowKey.keyText.text = "↑";
+	_root.levelButtons.levelKeys.rightArrowKey.keyText.text = "→";
+	_root.levelButtons.levelKeys.downArrowKey.keyText.text = "↓";
+	_root.levelButtons.levelKeys.enterKey.returnArrow._alpha = 100;
+	_root.levelButtons.levelMapButton.onRelease = function(){
+		_root.levelButtons.removeMovieClip();
+		Key.removeListener(keyListener);
+		drawLevelMap();
+	}
+	_root.levelButtons.textie.text = "Drag to organize; R to reset";
+	menuScreen = 6;
+
+	var timerPress = keysPress = false;
+	var timerOffsetX = timerOffsetY = keysOffsetX = keysOffsetY = 0;
+	
+	_root.levelButtons.levelTimer.onRollOver = function(){
+		_root.levelButtons.levelTimer._alpha = 3/4 * bfdia5b.data.timerMod.config.levelTimerOpacity;
+		_root.levelButtons.useHandCursor = true;
+	}
+	_root.levelButtons.levelTimer.onRollOut = _root.levelButtons.levelTimer.onReleaseOutside = function(){
+		_root.levelButtons.levelTimer._alpha = bfdia5b.data.timerMod.config.levelTimerOpacity;
+		_root.levelButtons.useHandCursor = false;
+		timerPress = false;
+	}
+	_root.levelButtons.levelTimer.onPress = function(){
+		_root.levelButtons.levelTimer._alpha = 1/2 * bfdia5b.data.timerMod.config.levelTimerOpacity;
+		timerOffsetX = _root.levelButtons.levelTimer._xmouse;
+		timerOffsetY = _root.levelButtons.levelTimer._ymouse;
+		timerPress = true;
+	}
+	_root.levelButtons.levelTimer.onMouseMove = function(){
+		if(timerPress){
+			_root.levelButtons.levelTimer._x = _xmouse - _root.levelButtons.levelTimer._xscale / 100 * timerOffsetX;
+			_root.levelButtons.levelTimer._y = _ymouse - _root.levelButtons.levelTimer._yscale / 100 * timerOffsetY;
+		}
+	}
+	_root.levelButtons.levelTimer.onRelease = function(){
+		_root.levelButtons.levelTimer._alpha = 3/4 * bfdia5b.data.timerMod.config.levelTimerOpacity;
+		timerPress = false;
+		bfdia5b.data.timerMod.config.levelTimer[0] = _root.levelButtons.levelTimer._x;
+		bfdia5b.data.timerMod.config.levelTimer[1] = _root.levelButtons.levelTimer._y;
+		bfdia5b.flush();
+	}
+
+	_root.levelButtons.levelKeys.onRollOver = function(){
+		_root.levelButtons.levelKeys._alpha = 3/4 * bfdia5b.data.timerMod.config.levelKeysOpacity;
+		_root.levelButtons.useHandCursor = true;
+	}
+	_root.levelButtons.levelKeys.onRollOut = _root.levelButtons.levelKeys.onReleaseOutside = function(){
+		_root.levelButtons.levelKeys._alpha = bfdia5b.data.timerMod.config.levelKeysOpacity;
+		_root.levelButtons.useHandCursor = false;
+		keysPress = false;
+	}
+	_root.levelButtons.levelKeys.onPress = function(){
+		_root.levelButtons.levelKeys._alpha = 1/2 * bfdia5b.data.timerMod.config.levelKeysOpacity;
+		keysOffsetX = _root.levelButtons.levelKeys._xmouse;
+		keysOffsetY = _root.levelButtons.levelKeys._ymouse;
+		keysPress = true;
+	}
+	_root.levelButtons.levelKeys.onMouseMove = function(){
+		if(keysPress){
+			_root.levelButtons.levelKeys._x = _xmouse - _root.levelButtons.levelKeys._xscale / 100 * keysOffsetX;
+			_root.levelButtons.levelKeys._y = _ymouse - _root.levelButtons.levelKeys._yscale / 100 * keysOffsetY;
+		}
+	}
+	_root.levelButtons.levelKeys.onRelease = function(){
+		_root.levelButtons.levelKeys._alpha = 3/4 * bfdia5b.data.timerMod.config.levelKeysOpacity;
+		keysPress = false;
+		bfdia5b.data.timerMod.config.levelKeys[0] = _root.levelButtons.levelKeys._x;
+		bfdia5b.data.timerMod.config.levelKeysY[1] = _root.levelButtons.levelKeys._y;
+		bfdia5b.flush();
+	}
+
 }
 function addCommas(i:Number){
 	var iStr:String = String(i);
@@ -1614,10 +1844,28 @@ function playLevel(i:Number){
 	transitionType = 1;
 	resetLevel();
 	levelButtons.levelMapButton.onRelease = function(){
-		timer += (getTimer()-levelTimer2);
+		timer += levelTimer2;
 		saveGame();
 		exitLevel();
 	}
+	levelButtons.levelTimer._x = bfdia5b.data.timerMod.config.levelTimer[0] || 4;
+	levelButtons.levelTimer._y = bfdia5b.data.timerMod.config.levelTimer[1] || 3;
+	levelButtons.levelTimer._xscale = bfdia5b.data.timerMod.config.levelTimerScale[0] || 70;
+	levelButtons.levelTimer._yscale = bfdia5b.data.timerMod.config.levelTimerScale[1] || 70;
+	levelButtons.levelTimer._alpha = bfdia5b.data.timerMod.config.levelTimerOpacity || 60;
+	levelButtons.levelKeys._x = bfdia5b.data.timerMod.config.levelKeys[0] || 695;
+	levelButtons.levelKeys._y = bfdia5b.data.timerMod.config.levelKeys[1] || 3;
+	levelButtons.levelKeys._xscale = bfdia5b.data.timerMod.config.levelKeysScale[0] || 60;
+	levelButtons.levelKeys._yscale = bfdia5b.data.timerMod.config.levelKeysScale[1] || 60;
+	levelButtons.levelKeys._alpha = bfdia5b.data.timerMod.config.levelKeysOpacity || 45;
+	if(best[i]) levelButtons.levelTimer.bestTime.text = toHMS2(best[i]);
+	levelButtons.levelKeys.zKey.keyText.text = "z";
+	levelButtons.levelKeys.rKey.keyText.text = "r";
+	levelButtons.levelKeys.leftArrowKey.keyText.text = "←";
+	levelButtons.levelKeys.upArrowKey.keyText.text = "↑";
+	levelButtons.levelKeys.rightArrowKey.keyText.text = "→";
+	levelButtons.levelKeys.downArrowKey.keyText.text = "↓";
+	levelButtons.levelKeys.enterKey.returnArrow._alpha = 100;
 }
 function addTileMovieClips(){
 	_root.createEmptyMovieClip("levelActive3",6);
@@ -1705,9 +1953,45 @@ var stopY:Number = 0;
 var toBounce:Boolean = false;
 var toSeeCS:Boolean = true;
 
-_root.attachMovie("white","white",10,{_alpha:0});
+var tPress = false, yPress = false;
 
+_root.attachMovie("white","white",10,{_alpha:0});
 onEnterFrame = function(){
+	if(wipeTimer != 30) levelTimer2 += 1000 / 60; // we're adding 1000ms to the timer every 60 frames because 60fps
+	if(menuScreen != 6) levelButtons.levelTimer.timer.text = toHMS2(levelTimer2);
+	else levelButtons.levelTimer.timer.text = "[T to hide]";
+	
+
+	if(!best[currentLevel] && menuScreen != 6) levelButtons.levelTimer.bestTime.text = toHMS2(levelTimer2);
+	else if (menuScreen == 6) levelButtons.levelTimer.bestTime.text = "[↑/↓ to scale]";
+	if (menuScreen != 6) levelButtons.levelTimer.totalTime.text = toHMS(timer + levelTimer2);
+	else levelButtons.levelTimer.totalTime.text = "[←/→ opacity]";
+
+	levelButtons.levelTimer._visible = bfdia5b.data.timerMod.config.showTimer;
+	levelButtons.levelKeys._visible = bfdia5b.data.timerMod.config.showKeys;
+	if(Key.isDown(84) && !tPress){
+		tPress = true;
+		levelButtons.levelTimer._visible = !levelButtons.levelTimer._visible;
+		bfdia5b.data.timerMod.config.showTimer = !bfdia5b.data.timerMod.config.showTimer;
+		bfdia5b.flush();
+	} else if(!Key.isDown(84)) tPress = false;
+	if(Key.isDown(89) && !yPress){
+		yPress = true;
+		levelButtons.levelKeys._visible = !levelButtons.levelKeys._visible;
+		bfdia5b.data.timerMod.config.showKeys = !bfdia5b.data.timerMod.config.showKeys;
+		bfdia5b.flush();
+	} else if(!Key.isDown(89)) yPress = false;
+
+	levelButtons.levelKeys.zKey.gotoAndStop(2 - !Key.isDown(90));
+	levelButtons.levelKeys.rKey.gotoAndStop(2 - !Key.isDown(82));
+	levelButtons.levelKeys.spaceKey.gotoAndStop(2 - !Key.isDown(32));
+	levelButtons.levelKeys.leftArrowKey.gotoAndStop(2 - !Key.isDown(37));
+	levelButtons.levelKeys.upArrowKey.gotoAndStop(2 - !Key.isDown(38));
+	levelButtons.levelKeys.rightArrowKey.gotoAndStop(2 - !Key.isDown(39));
+	levelButtons.levelKeys.downArrowKey.gotoAndStop(2 - !Key.isDown(40));
+	levelButtons.levelKeys.enterKey.gotoAndStop(2 - !(Key.isDown(13) || Key.isDown(16)));
+	levelButtons.levelKeys.enterKey2.gotoAndStop(2 - !(Key.isDown(13) || Key.isDown(16)));
+
 	if(menuScreen == 0){
 		drawMenu();
 		menuScreen = 1;
@@ -1725,6 +2009,7 @@ onEnterFrame = function(){
 	if(menuScreen == 3 || menuScreen == 4){
 		if(wipeTimer == 30){
 			if(transitionType == 0){ //resetting preexisting level
+				timer += levelTimer2;
 				resetLevel();
 			}else{
 				if(menuScreen == 4 && charsAtEnd >= charCount2){ //beat the level!
@@ -1732,7 +2017,9 @@ onEnterFrame = function(){
 						gotCoin[currentLevel] = true;
 						coins++;
 					}
-					timer += (getTimer()-levelTimer2);
+					timer += levelTimer2;
+					best[currentLevel] = Math.min(best[currentLevel] || Infinity, levelTimer2);
+					prev[currentLevel] = levelTimer2;
 					if(playMode == 0){
 						currentLevel++;
 						levelProgress = currentLevel;

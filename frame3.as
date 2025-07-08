@@ -23,10 +23,22 @@ var levelName:Array = new Array(levelCount);
 var mdao:Array = new Array(levelCount);
 var mdao2:Number = 0;
 var levelProgress:Number;
+var best:Array;
+var prev:Array;
 var gotCoin:Array;
 var gotThisCoin:Boolean = false;
 var tileCount:Number = 11;
 var bfdia5b:SharedObject = SharedObject.getLocal("bfdia5b");
+if(!bfdia5b.data.timerMod) bfdia5b.data.timerMod = { config: {
+	levelTimer: [ 4, 3 ],
+	levelTimerScale: [ 70, 70 ],
+	levelTimerOpacity: 60,
+	levelKeys: [ 695, 4 ],
+	levelKeysScale: [ 60, 60 ],
+	levelKeysOpacity: 45,
+	showTimer: true,
+	showKeys: true
+} };
 var deathCount:Number;
 var timer:Number;
 var coins:Number;
@@ -35,9 +47,13 @@ if(bfdia5b.data.levelProgress == undefined){
 	clearVars();
 }else{
 	levelProgress = bfdia5b.data.levelProgress;
+	best = new Array(levelCount);
+	prev = new Array(levelCount);
 	gotCoin = new Array(levelCount);
 	coins = 0;
 	for(var i:Number = 0; i < levelCount; i++){
+		best[i] = bfdia5b.data.best[i] || bfdia5b.data.timerMod.best[i]; // load from legacy save files
+		prev[i] = bfdia5b.data.timerMod.prev[i];
 		gotCoin[i] = bfdia5b.data.gotCoin[i];
 		if(gotCoin[i]) coins++;
 	}
@@ -46,14 +62,21 @@ if(bfdia5b.data.levelProgress == undefined){
 }
 function clearVars(){
 	deathCount = timer = coins = levelProgress = 0;
+	best = new Array(levelCount);
+	prev = new Array(levelCount);
 	gotCoin = new Array(levelCount);
 	for(var i:Number = 0; i < levelCount; i++){
 		gotCoin[i] = false;
 	}
 }
 function saveGame(){
+	delete bfdia5b.data.best;
+	bfdia5b.data.timerMod.best = new Array(levelCount);
+	bfdia5b.data.timerMod.prev = new Array(levelCount);
 	bfdia5b.data.gotCoin = new Array(levelCount);
 	for(var i:Number = 0; i < levelCount; i++){
+		bfdia5b.data.timerMod.best[i] = best[i];
+		bfdia5b.data.timerMod.prev[i] = prev[i];
 		bfdia5b.data.gotCoin[i] = gotCoin[i];
 	}
 	bfdia5b.data.coins = coins;
